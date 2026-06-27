@@ -1173,101 +1173,73 @@
     </main>
     <script>
       (function() {
-        var BASE = 'public/Resources/thorframes/';
-        var container = document.getElementById('thor-viewer');
+        const BASE = 'public/Resources/thorframes/';
+        const TOTAL_FRAMES = 59;
+        const SENSITIVITY = 0.5;
+        const EASE_START = 0.6;
+
+        const container = document.getElementById('thor-viewer');
         if (!container) return;
-        var SENSITIVITY = 0.5;
-        var EASE_START = 0.6;
 
-        function discoverSrcs() {
-          return new Promise(function(resolve) {
-            var srcs = [];
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.className = 'thor-frame-canvas';
+        canvas.style.width = '100%';
+        canvas.style.height = 'auto';
+        container.appendChild(canvas);
 
-            function probe(i) {
-              var src = BASE + String(i).padStart(4, '0') + '.png';
-              var t = new Image();
-              t.onload = function() {
-                srcs.push(src);
-                probe(i + 1);
-              };
-              t.onerror = function() {
-                resolve(srcs);
-              };
-              t.src = src;
-            }
-            probe(0);
-          });
+        const images = new Array(TOTAL_FRAMES);
+        let currentFrame = -1;
+        const getImgUrl = (index) => `${BASE}${String(index).padStart(4, '0')}.png`;
+
+        const img0 = new Image();
+        img0.src = getImgUrl(0);
+        img0.onload = function() {
+          canvas.width = img0.width;
+          canvas.height = img0.height;
+          
+          images[0] = img0;
+          applyFrame(0);
+
+          window.addEventListener('scroll', update, { passive: true });
+          window.addEventListener('resize', update, { passive: true });
+          update();
+
+          loadRestOfFrames();
+        };
+
+        function loadRestOfFrames() {
+          for (let i = 1; i < TOTAL_FRAMES; i++) {
+            const img = new Image();
+            img.src = getImgUrl(i);
+            img.onload = () => {
+              images[i] = img;
+              update(); 
+            };
+          }
         }
 
-        function preloadAll(srcs) {
-          return Promise.all(srcs.map(function(src) {
-            return new Promise(function(resolve) {
-              var img = new Image();
-              img.onload = function() {
-                resolve(img);
-              };
-              img.onerror = function() {
-                resolve(img);
-              };
-              img.src = src;
-            });
-          }));
+        function applyFrame(f) {
+          f = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(f)));
+          if (f === currentFrame || !images[f]) return; 
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(images[f], 0, 0);
+          currentFrame = f;
         }
-        discoverSrcs().then(function(srcs) {
-          var TOTAL = srcs.length;
-          if (TOTAL === 0) return;
-          var placeholder = document.createElement('img');
-          placeholder.src = srcs[0];
-          placeholder.alt = '';
-          placeholder.setAttribute('aria-hidden', 'true');
-          placeholder.className = 'thor-frame';
-          placeholder.style.visibility = 'visible';
-          placeholder.draggable = false;
-          container.appendChild(placeholder);
-          preloadAll(srcs).then(function(decoded) {
-            container.removeChild(placeholder);
-            var imgs = decoded.map(function(src, i) {
-              var img = document.createElement('img');
-              img.src = srcs[i];
-              img.alt = '';
-              img.setAttribute('aria-hidden', 'true');
-              img.className = 'thor-frame';
-              img.style.visibility = i === 0 ? 'visible' : 'hidden';
-              img.draggable = false;
-              container.appendChild(img);
-              return img;
-            });
-            var currentFrame = 0;
 
-            function applyFrame(f) {
-              f = Math.max(0, Math.min(TOTAL - 1, Math.round(f)));
-              if (f === currentFrame) return;
-              imgs[currentFrame].style.visibility = 'hidden';
-              imgs[f].style.visibility = 'visible';
-              currentFrame = f;
-            }
+        function easeOutTail(t) {
+          if (t <= EASE_START) return t;
+          const tail = (t - EASE_START) / (1 - EASE_START);
+          return EASE_START + (1 - Math.pow(1 - tail, 3)) * (1 - EASE_START);
+        }
 
-            function easeOutTail(t) {
-              if (t <= EASE_START) return t;
-              var tail = (t - EASE_START) / (1 - EASE_START);
-              return EASE_START + (1 - Math.pow(1 - tail, 3)) * (1 - EASE_START);
-            }
-
-            function update() {
-              var hero = document.querySelector('.hero-section');
-              var range = (hero ? hero.offsetHeight : window.innerHeight) * SENSITIVITY;
-              var t = Math.max(0, Math.min(1, window.scrollY / range));
-              applyFrame(easeOutTail(t) * (TOTAL - 1));
-            }
-            window.addEventListener('scroll', update, {
-              passive: true
-            });
-            window.addEventListener('resize', update, {
-              passive: true
-            });
-            update();
-          });
-        });
+        function update() {
+          const hero = document.querySelector('.hero-section');
+          const range = (hero ? hero.offsetHeight : window.innerHeight) * SENSITIVITY;
+          const t = Math.max(0, Math.min(1, window.scrollY / range));
+          applyFrame(easeOutTail(t) * (TOTAL_FRAMES - 1));
+        }
       })();
     </script>
   </body>
